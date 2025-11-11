@@ -1,0 +1,46 @@
+name: Daily SEO Data Pipeline
+
+on:
+  schedule:
+    - cron: "0 5 * * *"  # Ejecuta diariamente a las 05:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r pipeline/requirements.txt
+
+      - name: Prepare service account files
+        env:
+          GSC_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
+          GA_JSON: ${{ secrets.GA_SERVICE_ACCOUNT_JSON }}
+          SHEETS_JSON: ${{ secrets.SHEETS_SERVICE_ACCOUNT_JSON }}
+        run: |
+          mkdir -p secrets
+          printf "%s" "$GSC_JSON" > secrets/gsc.json
+          printf "%s" "$GA_JSON" > secrets/ga.json
+          printf "%s" "$SHEETS_JSON" > secrets/sheets.json
+          echo "GSC_SERVICE_ACCOUNT_JSON=secrets/gsc.json" >> $GITHUB_ENV
+          echo "GA_SERVICE_ACCOUNT_JSON=secrets/ga.json" >> $GITHUB_ENV
+          echo "SHEETS_SERVICE_ACCOUNT_JSON=secrets/sheets.json" >> $GITHUB_ENV
+
+      - name: Execute data pipeline
+        env:
+          SEO_MASTER_SPREADSHEET_ID: ${{ secrets.SEO_MASTER_SPREADSHEET_ID }}
+          GSC_SITE_URL: ${{ secrets.GSC_SITE_URL }}
+          GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
+          LOG_LEVEL: INFO
+        run: |
+          python -m pipeline.data_pipeline
