@@ -31,11 +31,11 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _get_target_date() -> date:
-    """Devuelve la fecha a procesar (ayer por defecto)."""
+    """Devuelve la fecha a procesar (dos días antes por defecto)."""
     override = os.getenv("PIPELINE_TARGET_DATE")
     if override:
         return date.fromisoformat(override)
-    return date.today() - timedelta(days=1)
+    return date.today() - timedelta(days=2)
 
 
 def _prepare_dataframe(df: pd.DataFrame, date_column: str) -> pd.DataFrame:
