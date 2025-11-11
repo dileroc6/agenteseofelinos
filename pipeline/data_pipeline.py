@@ -64,7 +64,11 @@ def run_pipeline(
         raise ValueError("Se requiere SEO_MASTER_SPREADSHEET_ID para actualizar Google Sheets")
 
     target_date = _get_target_date()
-    LOGGER.info("Iniciando pipeline para la fecha %s", target_date)
+    LOGGER.info(
+        "Iniciando pipeline para %s | spreadsheet=%s... :-)",
+        target_date,
+        (spreadsheet_id[:6] if spreadsheet_id else "undefined"),
+    )
 
     # 1. Extraer datos de GSC
     gsc_df = fetch_daily_gsc_data(target_date=target_date, site_url=gsc_site_url)
@@ -78,6 +82,7 @@ def run_pipeline(
 
     # 3. Escribir en Google Sheets (upsert por fecha + URL)
     if not gsc_df.empty:
+        LOGGER.info("Actualizando pestaña gsc_data_daily con %d filas :D", len(gsc_df))
         update_sheet_with_dataframe(
             spreadsheet_id=spreadsheet_id,
             worksheet_title="gsc_data_daily",
@@ -86,6 +91,7 @@ def run_pipeline(
         )
 
     if not ga4_df.empty:
+        LOGGER.info("Actualizando pestaña ga4_data_daily con %d filas :D", len(ga4_df))
         update_sheet_with_dataframe(
             spreadsheet_id=spreadsheet_id,
             worksheet_title="ga4_data_daily",
@@ -93,7 +99,7 @@ def run_pipeline(
             key_columns=["date", "url"],
         )
 
-    LOGGER.info("Pipeline completado para %s", target_date)
+    LOGGER.info("Pipeline completado para %s :-)", target_date)
 
 
 if __name__ == "__main__":

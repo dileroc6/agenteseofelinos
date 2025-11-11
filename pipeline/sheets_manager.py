@@ -34,7 +34,7 @@ def update_sheet_with_dataframe(
         import gspread  # type: ignore
         from gspread.utils import rowcol_to_a1  # type: ignore
     except Exception as import_err:  # pragma: no cover - fallback
-        LOGGER.warning("gspread no disponible (%s). Exportando CSV local.", import_err)
+        LOGGER.warning("gspread no disponible (%s). Exportando CSV local :-(", import_err)
         _export_local_csv(worksheet_title, dataframe)
         return
 
@@ -44,13 +44,15 @@ def update_sheet_with_dataframe(
         _export_local_csv(worksheet_title, dataframe)
         return
 
+    LOGGER.debug("Usando archivo de credenciales Sheets: %s", os.path.basename(credentials_path))
     client = gspread.service_account(filename=credentials_path)
+    LOGGER.info("Abriendo spreadsheet %s :-)", spreadsheet_id)
     sh = client.open_by_key(spreadsheet_id)
 
     try:
         worksheet = sh.worksheet(worksheet_title)
     except gspread.WorksheetNotFound:  # type: ignore
-        LOGGER.info("Pestaña '%s' no existe. Creándola.", worksheet_title)
+        LOGGER.info("Pestaña '%s' no existe. Creándola :D", worksheet_title)
         worksheet = sh.add_worksheet(title=worksheet_title, rows="100", cols="20")
         worksheet.update("A1", [list(dataframe.columns)])
         worksheet.update(f"A2", dataframe.astype(str).values.tolist())
@@ -69,7 +71,7 @@ def update_sheet_with_dataframe(
     if not merged_df.empty:
         worksheet.update("A2", merged_df.astype(str).values.tolist())
 
-    LOGGER.info("Hoja '%s' actualizada (%d filas).", worksheet_title, len(merged_df))
+    LOGGER.info("Hoja '%s' actualizada (%d filas) :-)", worksheet_title, len(merged_df))
 
 
 def _merge_dataframes(existing: pd.DataFrame, new_data: pd.DataFrame, key_columns: list[str]) -> pd.DataFrame:
@@ -91,4 +93,4 @@ def _export_local_csv(name: str, dataframe: pd.DataFrame) -> None:
     """Guarda un CSV local como respaldo cuando Sheets no está disponible."""
     path = f"./pipeline_backup_{name}.csv"
     dataframe.to_csv(path, index=False)
-    LOGGER.info("Datos exportados a %s", path)
+    LOGGER.info("Datos exportados a %s :-)", path)

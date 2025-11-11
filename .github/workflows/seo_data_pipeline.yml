@@ -2,7 +2,7 @@ name: Daily SEO Data Pipeline
 
 on:
   schedule:
-    - cron: "0 5 * * *"  # Ejecuta diariamente a las 05:00 UTC
+    - cron: "0 8 * * *"  # Ejecuta diariamente a las 03:00 Bogotá (UTC-5)
   workflow_dispatch: {}
 
 jobs:

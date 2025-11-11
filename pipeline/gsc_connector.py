@@ -33,18 +33,19 @@ def fetch_daily_gsc_data(target_date: Optional[date] = None, site_url: Optional[
         Columnas: ["date", "url", "clicks", "impressions", "ctr", "position"]
     """
     target_date = target_date or (date.today())
+    LOGGER.info("Consultando Search Console para %s (site_url definido=%s) :-)", target_date, bool(site_url))
 
     try:
         from google.oauth2 import service_account  # type: ignore
         from googleapiclient.discovery import build  # type: ignore
         from googleapiclient.errors import HttpError  # type: ignore
     except Exception as import_err:  # pragma: no cover - fallback
-        LOGGER.warning("Dependencias de Google API no disponibles: %s", import_err)
+        LOGGER.warning("Dependencias de Google API no disponibles: %s :-(", import_err)
         return _build_sample_df(target_date)
 
     credentials_path = os.getenv("GSC_SERVICE_ACCOUNT_JSON")
     if not credentials_path or not os.path.exists(credentials_path):  # pragma: no cover - fallback
-        LOGGER.warning("No se encontró GSC_SERVICE_ACCOUNT_JSON. Retornando datos simulados.")
+        LOGGER.warning("No se encontró GSC_SERVICE_ACCOUNT_JSON. Retornando datos simulados :-|")
         return _build_sample_df(target_date)
 
     scopes = ["https://www.googleapis.com/auth/webmasters.readonly"]
@@ -52,6 +53,8 @@ def fetch_daily_gsc_data(target_date: Optional[date] = None, site_url: Optional[
     try:
         credentials = service_account.Credentials.from_service_account_file(credentials_path, scopes=scopes)
         service = build("searchconsole", "v1", credentials=credentials, cache_discovery=False)
+
+        LOGGER.debug("Usando archivo de credenciales GSC: %s", os.path.basename(credentials_path))
 
         if not site_url:
             raise ValueError("site_url requerido para consultar Search Console")
@@ -83,6 +86,7 @@ def fetch_daily_gsc_data(target_date: Optional[date] = None, site_url: Optional[
             LOGGER.info("Sin filas devueltas por Search Console para %s. Retorno vacío.", target_date)
             return pd.DataFrame(columns=["date", "url", "clicks", "impressions", "ctr", "position"])
 
+        LOGGER.info("Search Console devolvió %d filas para %s :D", len(data), target_date)
         return pd.DataFrame(data)
     except HttpError as api_err:  # pragma: no cover - runtime error path
         LOGGER.error("Error consultando Search Console: %s", api_err)

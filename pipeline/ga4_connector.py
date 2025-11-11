@@ -28,23 +28,25 @@ def fetch_daily_ga4_data(property_id: Optional[str] = None, target_date: Optiona
         Fecha a consultar. Por defecto usa el día actual.
     """
     target_date = target_date or date.today()
+    LOGGER.info("Consultando GA4 para %s (property definida=%s) :-)", target_date, bool(property_id))
 
     try:
         from google.analytics.data_v1beta import BetaAnalyticsDataClient  # type: ignore
         from google.analytics.data_v1beta.types import DateRange, Dimension, Metric, RunReportRequest  # type: ignore
     except Exception as import_err:  # pragma: no cover - fallback
-        LOGGER.warning("Dependencias de GA4 no disponibles: %s", import_err)
+        LOGGER.warning("Dependencias de GA4 no disponibles: %s :-(", import_err)
         return _build_sample_df(target_date)
 
     credentials_path = os.getenv("GA_SERVICE_ACCOUNT_JSON")
     if not credentials_path or not os.path.exists(credentials_path):  # pragma: no cover - fallback
-        LOGGER.warning("No se encontró GA_SERVICE_ACCOUNT_JSON. Retornando datos simulados.")
+        LOGGER.warning("No se encontró GA_SERVICE_ACCOUNT_JSON. Retornando datos simulados :-|")
         return _build_sample_df(target_date)
 
     if not property_id:
         raise ValueError("property_id requerido para consultar GA4")
 
     try:
+        LOGGER.debug("Usando archivo de credenciales GA4: %s", os.path.basename(credentials_path))
         client = BetaAnalyticsDataClient.from_service_account_file(credentials_path)
         request = RunReportRequest(
             property=property_id,
@@ -77,6 +79,7 @@ def fetch_daily_ga4_data(property_id: Optional[str] = None, target_date: Optiona
             LOGGER.info("GA4 no devolvió filas para %s. Retorno DataFrame vacío.", target_date)
             return pd.DataFrame(columns=["date", "url", "users", "sessions", "avg_session_duration", "bounce_rate"])
 
+        LOGGER.info("GA4 devolvió %d filas para %s :D", len(data), target_date)
         return pd.DataFrame(data)
     except Exception as exc:  # pragma: no cover - runtime error path
         LOGGER.exception("Fallo inesperado en fetch_daily_ga4_data")
