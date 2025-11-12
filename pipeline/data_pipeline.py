@@ -10,7 +10,8 @@ Ejecutar como módulo para que los imports relativos funcionen:
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 import logging
 import os
 from typing import Optional
@@ -35,7 +36,17 @@ def _get_target_date() -> date:
     override = os.getenv("PIPELINE_TARGET_DATE")
     if override:
         return date.fromisoformat(override)
-    return date.today() - timedelta(days=2)
+
+    tz_name = os.getenv("PIPELINE_TIMEZONE", "America/Bogota")
+    try:
+        current_date = datetime.now(ZoneInfo(tz_name)).date()
+    except Exception:  # pragma: no cover - fallback si el timezone es inválido
+        LOGGER.warning("Zona horaria '%s' inválida; usando UTC :-|", tz_name)
+        current_date = datetime.utcnow().date()
+
+    target = current_date - timedelta(days=2)
+    LOGGER.info("Calculada fecha objetivo %s usando timezone %s", target, tz_name)
+    return target
 
 
 def _prepare_dataframe(df: pd.DataFrame, date_column: str) -> pd.DataFrame:

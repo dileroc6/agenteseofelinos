@@ -5,6 +5,7 @@ Workflow automatizado que extrae métricas diarias de Google Search Console (GSC
 ## Cómo funciona
 
 1. `pipeline/data_pipeline.py` determina la fecha a procesar. Por defecto usa dos días antes de la fecha de ejecución para anticipar la latencia de las APIs. Podés forzar otra fecha definiendo la variable de entorno `PIPELINE_TARGET_DATE` en formato `YYYY-MM-DD`.
+	- Si necesitás ajustar la zona horaria, usa `PIPELINE_TIMEZONE` (por defecto `America/Bogota`).
 2. `pipeline/gsc_connector.py` consulta Search Console y devuelve métricas por página (clicks, impresiones, CTR, posición). Si faltan credenciales o la API todavía no tiene datos publicados, genera un CSV de respaldo.
 3. `pipeline/ga4_connector.py` obtiene métricas de GA4 por `pagePath` (usuarios, sesiones, duración media de sesión y tasa de rebote). Usa la Data API y retorna filas simuladas cuando no hay credenciales.
 4. `pipeline/sheets_manager.py` realiza un upsert en Google Sheets y crea las pestañas `gsc_data_daily` y `ga4_data_daily` si no existen. La unión se hace por `date + url`, de modo que si vuelves a procesar el mismo día los datos se actualizan sin duplicados.
