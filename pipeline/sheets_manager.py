@@ -55,7 +55,7 @@ def update_sheet_with_dataframe(
         LOGGER.info("Pestaña '%s' no existe. Creándola :D", worksheet_title)
         worksheet = sh.add_worksheet(title=worksheet_title, rows="100", cols="20")
         worksheet.update("A1", [list(dataframe.columns)])
-        worksheet.update(f"A2", dataframe.astype(str).values.tolist())
+        worksheet.update("A2", _dataframe_to_sheet_rows(dataframe))
         return
 
     existing_records = worksheet.get_all_records()
@@ -69,7 +69,7 @@ def update_sheet_with_dataframe(
     worksheet.clear()
     worksheet.update("A1", [list(merged_df.columns)])
     if not merged_df.empty:
-        worksheet.update("A2", merged_df.astype(str).values.tolist())
+        worksheet.update("A2", _dataframe_to_sheet_rows(merged_df))
 
     LOGGER.info("Hoja '%s' actualizada (%d filas) :-)", worksheet_title, len(merged_df))
 
@@ -94,3 +94,14 @@ def _export_local_csv(name: str, dataframe: pd.DataFrame) -> None:
     path = f"./pipeline_backup_{name}.csv"
     dataframe.to_csv(path, index=False)
     LOGGER.info("Datos exportados a %s :-)", path)
+
+
+def _dataframe_to_sheet_rows(dataframe: pd.DataFrame) -> list[list[object]]:
+    """Convierte el DataFrame en filas listas para Google Sheets manteniendo tipos nativos."""
+    if dataframe.empty:
+        return []
+
+    safe_df = dataframe.copy()
+    safe_df = safe_df.where(pd.notnull(safe_df), "")
+    records = safe_df.to_dict(orient="records")
+    return [[record[col] for col in safe_df.columns] for record in records]
