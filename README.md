@@ -22,6 +22,16 @@ Configura estos secrets en el repositorio de GitHub para que el workflow pueda a
 | `SEO_MASTER_SPREADSHEET_ID` | ID de la hoja (cadena entre `/d/` y `/edit` en la URL de Google Sheets). |
 | `GSC_SITE_URL` | Identificador exacto de la propiedad en Search Console. Usa `https://tu-sitio.com/` para propiedades URL-prefix o `sc-domain:tu-sitio.com` para propiedades de dominio. |
 | `GA4_PROPERTY_ID` | Identificador de GA4 con el formato `properties/123456789`. |
+| `TELEGRAM_BOT_TOKEN` *(opcional)* | Token del bot de Telegram encargado de recibir el resumen diario. |
+| `TELEGRAM_CHAT_ID` *(opcional)* | Chat (usuario o grupo) donde se enviará la notificación. |
+
+### Variables opcionales
+
+- `GA4_BASE_URL`: Prefijo que se antepone cuando GA4 devuelve rutas relativas (ej. `https://bigotesfelinos.com`).
+- `GA4_URL_PREFIX_FILTER`: Lista separada por `|` con prefijos de URL para filtrar los reportes de GA4.
+- `PIPELINE_LOOKBACK_DAYS`: Días hacia atrás que se consultan (default `3`).
+
+Si `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` están definidos, el pipeline enviará un resumen con el total de filas de GSC y GA4 (o un aviso cuando una fuente llega vacía) al finalizar cada ejecución.
 
 ## Ejecuciones manuales y solución de problemas
 

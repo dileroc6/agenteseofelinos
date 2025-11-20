@@ -21,6 +21,7 @@ import pandas as pd
 from .gsc_connector import fetch_daily_gsc_data
 from .ga4_connector import fetch_daily_ga4_data
 from .sheets_manager import update_sheet_with_dataframe
+from .notifications import send_pipeline_summary_notification
 
 # Configuración básica de logging para que GitHub Actions capture el output.
 logging.basicConfig(
@@ -94,36 +95,59 @@ def run_pipeline(
         (spreadsheet_id[:6] if spreadsheet_id else "undefined"),
     )
 
-    # 1. Extraer datos de GSC
-    gsc_df = fetch_daily_gsc_data(target_date=target_date, site_url=gsc_site_url)
-    gsc_df = _prepare_dataframe(gsc_df, "date")
-    LOGGER.info("Filas GSC obtenidas: %d", len(gsc_df))
+    gsc_rows = 0
+    ga4_rows = 0
+    success = False
+    error_message: Optional[str] = None
 
-    # 2. Extraer datos de GA4
-    ga4_df = fetch_daily_ga4_data(property_id=ga4_property_id, target_date=target_date)
-    ga4_df = _prepare_dataframe(ga4_df, "date")
-    LOGGER.info("Filas GA4 obtenidas: %d", len(ga4_df))
+    try:
+        # 1. Extraer datos de GSC
+        gsc_df = fetch_daily_gsc_data(target_date=target_date, site_url=gsc_site_url)
+        gsc_df = _prepare_dataframe(gsc_df, "date")
+        gsc_rows = len(gsc_df)
+        LOGGER.info("Filas GSC obtenidas: %d", gsc_rows)
 
-    # 3. Escribir en Google Sheets (upsert por fecha + URL)
-    if not gsc_df.empty:
-        LOGGER.info("Actualizando pestaña gsc_data_daily con %d filas :D", len(gsc_df))
-        update_sheet_with_dataframe(
-            spreadsheet_id=spreadsheet_id,
-            worksheet_title="gsc_data_daily",
-            dataframe=gsc_df,
-            key_columns=["date", "url"],
-        )
+        # 2. Extraer datos de GA4
+        ga4_df = fetch_daily_ga4_data(property_id=ga4_property_id, target_date=target_date)
+        ga4_df = _prepare_dataframe(ga4_df, "date")
+        ga4_rows = len(ga4_df)
+        LOGGER.info("Filas GA4 obtenidas: %d", ga4_rows)
 
-    if not ga4_df.empty:
-        LOGGER.info("Actualizando pestaña ga4_data_daily con %d filas :D", len(ga4_df))
-        update_sheet_with_dataframe(
-            spreadsheet_id=spreadsheet_id,
-            worksheet_title="ga4_data_daily",
-            dataframe=ga4_df,
-            key_columns=["date", "url"],
-        )
+        # 3. Escribir en Google Sheets (upsert por fecha + URL)
+        if gsc_rows > 0:
+            LOGGER.info("Actualizando pestaña gsc_data_daily con %d filas :D", gsc_rows)
+            update_sheet_with_dataframe(
+                spreadsheet_id=spreadsheet_id,
+                worksheet_title="gsc_data_daily",
+                dataframe=gsc_df,
+                key_columns=["date", "url"],
+            )
 
-    LOGGER.info("Pipeline completado para %s :-)", target_date)
+        if ga4_rows > 0:
+            LOGGER.info("Actualizando pestaña ga4_data_daily con %d filas :D", ga4_rows)
+            update_sheet_with_dataframe(
+                spreadsheet_id=spreadsheet_id,
+                worksheet_title="ga4_data_daily",
+                dataframe=ga4_df,
+                key_columns=["date", "url"],
+            )
+
+        LOGGER.info("Pipeline completado para %s :-)", target_date)
+        success = True
+    except Exception as exc:
+        error_message = str(exc)
+        raise
+    finally:
+        try:
+            send_pipeline_summary_notification(
+                target_date=target_date,
+                gsc_rows=gsc_rows,
+                ga4_rows=ga4_rows,
+                success=success,
+                error_message=error_message,
+            )
+        except Exception:
+            LOGGER.exception("Fallo enviando la notificación del pipeline")
 
 
 if __name__ == "__main__":
