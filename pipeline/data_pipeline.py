@@ -44,8 +44,21 @@ def _get_target_date() -> date:
         LOGGER.warning("Zona horaria '%s' inválida; usando UTC :-|", tz_name)
         current_date = datetime.utcnow().date()
 
-    target = current_date - timedelta(days=2)
-    LOGGER.info("Calculada fecha objetivo %s usando timezone %s", target, tz_name)
+    try:
+        lookback_days = int(os.getenv("PIPELINE_LOOKBACK_DAYS", "3"))
+        if lookback_days < 0:
+            raise ValueError
+    except ValueError:
+        LOGGER.warning("PIPELINE_LOOKBACK_DAYS inválido. Usando 3 días de lookback.")
+        lookback_days = 3
+
+    target = current_date - timedelta(days=lookback_days)
+    LOGGER.info(
+        "Calculada fecha objetivo %s usando timezone %s (lookback=%d)",
+        target,
+        tz_name,
+        lookback_days,
+    )
     return target
 
 
