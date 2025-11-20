@@ -52,9 +52,14 @@ def fetch_daily_ga4_data(property_id: Optional[str] = None, target_date: Optiona
         dimensions_priority = [
             "pageLocation",
             "landingPagePlusQueryString",
+            "pagePathPlusQueryString",
             "pagePath",
         ]
         row_limit = int(os.getenv("GA4_ROW_LIMIT", "2500"))
+
+        filters = _build_ga4_filters()
+        if filters:
+            LOGGER.info("GA4 aplicará filtros por prefijos: %s", os.getenv("GA4_URL_PREFIX_FILTER"))
 
         for dimension_name in dimensions_priority:
             LOGGER.info("GA4: solicitando dimensión %s", dimension_name)
@@ -70,6 +75,7 @@ def fetch_daily_ga4_data(property_id: Optional[str] = None, target_date: Optiona
                 ],
                 limit=row_limit,
                 keep_empty_rows=False,
+                dimension_filter=filters[dimension_name] if dimension_name in filters else None,
             )
 
             response = client.run_report(request)
@@ -96,6 +102,39 @@ def fetch_daily_ga4_data(property_id: Optional[str] = None, target_date: Optiona
     except Exception as exc:  # pragma: no cover - runtime error path
         LOGGER.exception("Fallo inesperado en fetch_daily_ga4_data")
         return pd.DataFrame(columns=["date", "url", "users", "sessions", "avg_session_duration", "bounce_rate"])
+
+
+def _build_ga4_filters() -> dict[str, object]:
+    from google.analytics.data_v1beta.types import Filter, FilterExpression, FilterExpressionList  # type: ignore
+
+    prefixes = [p.strip() for p in os.getenv("GA4_URL_PREFIX_FILTER", "").split("|") if p.strip()]
+    if not prefixes:
+        return {}
+
+    def _prefix_expression(field_name: str) -> FilterExpression:
+        return FilterExpression(
+            or_group=FilterExpressionList(
+                expressions=[
+                    FilterExpression(
+                        filter=Filter(
+                            field_name=field_name,
+                            string_filter=Filter.StringFilter(
+                                value=prefix,
+                                match_type=Filter.StringFilter.MatchType.BEGINS_WITH,
+                            ),
+                        )
+                    )
+                    for prefix in prefixes
+                ]
+            )
+        )
+
+    return {
+        "pageLocation": _prefix_expression("pageLocation"),
+        "landingPagePlusQueryString": _prefix_expression("landingPagePlusQueryString"),
+        "pagePathPlusQueryString": _prefix_expression("pagePathPlusQueryString"),
+        "pagePath": _prefix_expression("pagePath"),
+    }
 
 
 def _build_sample_df(target_date: date) -> pd.DataFrame:
@@ -138,7 +177,7 @@ def _rows_to_ga4_records(rows, target_date: date, dimension_name: str, base_url:
         if raw_value.startswith("http://") or raw_value.startswith("https://"):
             page_url = raw_value
         else:
-            normalized = raw_value.lstrip("/") if dimension_name in {"pagePath", "landingPagePlusQueryString"} else raw_value
+            normalized = raw_value.lstrip("/") if dimension_name in {"pagePath", "landingPagePlusQueryString", "pagePathPlusQueryString"} else raw_value
             page_url = f"{base_url}/{normalized}" if base_url else normalized
 
         data.append(
