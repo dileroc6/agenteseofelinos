@@ -49,10 +49,15 @@ def fetch_daily_ga4_data(property_id: Optional[str] = None, target_date: Optiona
         LOGGER.debug("Usando archivo de credenciales GA4: %s", os.path.basename(credentials_path))
         client = BetaAnalyticsDataClient.from_service_account_file(credentials_path)
         base_url = os.getenv("GA4_BASE_URL", "")
-        dimensions_priority = ["pageLocation", "pagePath"]
+        dimensions_priority = [
+            "pageLocation",
+            "landingPagePlusQueryString",
+            "pagePath",
+        ]
+        row_limit = int(os.getenv("GA4_ROW_LIMIT", "2500"))
 
         for dimension_name in dimensions_priority:
-            LOGGER.debug("Solicitando GA4 con dimensión %s", dimension_name)
+            LOGGER.info("GA4: solicitando dimensión %s", dimension_name)
             request = RunReportRequest(
                 property=property_id,
                 date_ranges=[DateRange(start_date=target_date.isoformat(), end_date=target_date.isoformat())],
@@ -63,9 +68,16 @@ def fetch_daily_ga4_data(property_id: Optional[str] = None, target_date: Optiona
                     Metric(name="averageSessionDuration"),
                     Metric(name="bounceRate"),
                 ],
+                limit=row_limit,
+                keep_empty_rows=False,
             )
 
             response = client.run_report(request)
+            LOGGER.info(
+                "GA4 respuesta: row_count=%s, dimension_headers=%s",
+                getattr(response, "row_count", ""),
+                [hdr.name for hdr in getattr(response, "dimension_headers", [])],
+            )
             data = _rows_to_ga4_records(response.rows, target_date, dimension_name, base_url)
 
             if data:
@@ -77,7 +89,7 @@ def fetch_daily_ga4_data(property_id: Optional[str] = None, target_date: Optiona
                 )
                 return pd.DataFrame(data)
 
-            LOGGER.debug("GA4 sin filas para %s con dimensión %s", target_date, dimension_name)
+            LOGGER.info("GA4 sin filas para %s con dimensión %s", target_date, dimension_name)
 
         LOGGER.info("GA4 no devolvió filas para %s. Retorno DataFrame vacío.", target_date)
         return pd.DataFrame(columns=["date", "url", "users", "sessions", "avg_session_duration", "bounce_rate"])
@@ -126,7 +138,7 @@ def _rows_to_ga4_records(rows, target_date: date, dimension_name: str, base_url:
         if raw_value.startswith("http://") or raw_value.startswith("https://"):
             page_url = raw_value
         else:
-            normalized = raw_value.lstrip("/") if dimension_name == "pagePath" else raw_value
+            normalized = raw_value.lstrip("/") if dimension_name in {"pagePath", "landingPagePlusQueryString"} else raw_value
             page_url = f"{base_url}/{normalized}" if base_url else normalized
 
         data.append(
