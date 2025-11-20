@@ -5,7 +5,7 @@ Actualmente soporta Telegram mediante la API oficial.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 import logging
 import os
 from typing import Optional
@@ -37,17 +37,26 @@ def _build_summary_text(
     success: bool,
     error_message: Optional[str],
 ) -> str:
-    run_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
+    tz_name = os.getenv("PIPELINE_TIMEZONE", "America/Bogota")
+    try:
+        from zoneinfo import ZoneInfo  # type: ignore
+
+        local_now = datetime.now(ZoneInfo(tz_name))
+    except Exception:  # pragma: no cover - zoneinfo no disponible
+        LOGGER.warning("Zona horaria '%s' inválida; usando UTC en notificación", tz_name)
+        local_now = datetime.utcnow()
+
+    run_timestamp = local_now.strftime("%I:%M%p %d/%m/%Y").lstrip("0").replace("AM", "am").replace("PM", "pm")
     date_label = target_date.isoformat() if target_date else "N/D"
     lookback = os.getenv("PIPELINE_LOOKBACK_DAYS", "3")
 
     status = "OK" if success else "ERROR"
     lines = [
-        f"SEO Pipeline | {status}",
+        f"🚀 Pipeline Trae Data | {status}",
         f"Objetivo: {date_label} (lookback={lookback})",
         f"GSC filas: {gsc_rows}",
         f"GA4 filas: {ga4_rows}",
-        f"UTC run: {run_timestamp}",
+        f"Hora ejecución: {run_timestamp} ({tz_name})",
     ]
 
     if error_message:
