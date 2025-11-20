@@ -51,7 +51,7 @@ def fetch_daily_ga4_data(property_id: Optional[str] = None, target_date: Optiona
         request = RunReportRequest(
             property=property_id,
             date_ranges=[DateRange(start_date=target_date.isoformat(), end_date=target_date.isoformat())],
-            dimensions=[Dimension(name="pagePath")],
+            dimensions=[Dimension(name="pageLocation")],
             metrics=[
                 Metric(name="totalUsers"),
                 Metric(name="sessions"),
@@ -63,11 +63,20 @@ def fetch_daily_ga4_data(property_id: Optional[str] = None, target_date: Optiona
         response = client.run_report(request)
         data = []
         for row in response.rows:
-            page_path = row.dimension_values[0].value or ""
+            page_location = row.dimension_values[0].value or ""
+            if not page_location:
+                continue
+
+            if page_location.startswith("http://") or page_location.startswith("https://"):
+                page_url = page_location
+            else:
+                base_url = os.getenv("GA4_BASE_URL", "")
+                page_url = f"{base_url.rstrip('/')}/{page_location.lstrip('/')}" if base_url else page_location
+
             data.append(
                 {
                     "date": target_date,
-                    "url": page_path,
+                    "url": page_url,
                     "users": float(row.metric_values[0].value or 0),
                     "sessions": float(row.metric_values[1].value or 0),
                     "avg_session_duration": float(row.metric_values[2].value or 0),
