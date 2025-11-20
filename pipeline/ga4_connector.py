@@ -48,48 +48,39 @@ def fetch_daily_ga4_data(property_id: Optional[str] = None, target_date: Optiona
     try:
         LOGGER.debug("Usando archivo de credenciales GA4: %s", os.path.basename(credentials_path))
         client = BetaAnalyticsDataClient.from_service_account_file(credentials_path)
-        request = RunReportRequest(
-            property=property_id,
-            date_ranges=[DateRange(start_date=target_date.isoformat(), end_date=target_date.isoformat())],
-            dimensions=[Dimension(name="pageLocation")],
-            metrics=[
-                Metric(name="totalUsers"),
-                Metric(name="sessions"),
-                Metric(name="averageSessionDuration"),
-                Metric(name="bounceRate"),
-            ],
-        )
+        base_url = os.getenv("GA4_BASE_URL", "")
+        dimensions_priority = ["pageLocation", "pagePath"]
 
-        response = client.run_report(request)
-        data = []
-        for row in response.rows:
-            page_location = row.dimension_values[0].value or ""
-            if not page_location:
-                continue
-
-            if page_location.startswith("http://") or page_location.startswith("https://"):
-                page_url = page_location
-            else:
-                base_url = os.getenv("GA4_BASE_URL", "")
-                page_url = f"{base_url.rstrip('/')}/{page_location.lstrip('/')}" if base_url else page_location
-
-            data.append(
-                {
-                    "date": target_date,
-                    "url": page_url,
-                    "users": float(row.metric_values[0].value or 0),
-                    "sessions": float(row.metric_values[1].value or 0),
-                    "avg_session_duration": float(row.metric_values[2].value or 0),
-                    "bounce_rate": float(row.metric_values[3].value or 0),
-                }
+        for dimension_name in dimensions_priority:
+            LOGGER.debug("Solicitando GA4 con dimensión %s", dimension_name)
+            request = RunReportRequest(
+                property=property_id,
+                date_ranges=[DateRange(start_date=target_date.isoformat(), end_date=target_date.isoformat())],
+                dimensions=[Dimension(name=dimension_name)],
+                metrics=[
+                    Metric(name="totalUsers"),
+                    Metric(name="sessions"),
+                    Metric(name="averageSessionDuration"),
+                    Metric(name="bounceRate"),
+                ],
             )
 
-        if not data:
-            LOGGER.info("GA4 no devolvió filas para %s. Retorno DataFrame vacío.", target_date)
-            return pd.DataFrame(columns=["date", "url", "users", "sessions", "avg_session_duration", "bounce_rate"])
+            response = client.run_report(request)
+            data = _rows_to_ga4_records(response.rows, target_date, dimension_name, base_url)
 
-        LOGGER.info("GA4 devolvió %d filas para %s :D", len(data), target_date)
-        return pd.DataFrame(data)
+            if data:
+                LOGGER.info(
+                    "GA4 devolvió %d filas para %s usando %s :D",
+                    len(data),
+                    target_date,
+                    dimension_name,
+                )
+                return pd.DataFrame(data)
+
+            LOGGER.debug("GA4 sin filas para %s con dimensión %s", target_date, dimension_name)
+
+        LOGGER.info("GA4 no devolvió filas para %s. Retorno DataFrame vacío.", target_date)
+        return pd.DataFrame(columns=["date", "url", "users", "sessions", "avg_session_duration", "bounce_rate"])
     except Exception as exc:  # pragma: no cover - runtime error path
         LOGGER.exception("Fallo inesperado en fetch_daily_ga4_data")
         return pd.DataFrame(columns=["date", "url", "users", "sessions", "avg_session_duration", "bounce_rate"])
@@ -117,3 +108,36 @@ def _build_sample_df(target_date: date) -> pd.DataFrame:
             },
         ]
     )
+
+
+def _rows_to_ga4_records(rows, target_date: date, dimension_name: str, base_url: str) -> list[dict[str, object]]:
+    """Transforma las filas de GA4 en registros normalizados para el pipeline."""
+    data: list[dict[str, object]] = []
+    if not rows:
+        return data
+
+    base_url = base_url.rstrip("/")
+
+    for row in rows:
+        raw_value = (row.dimension_values[0].value or "").strip()
+        if not raw_value:
+            continue
+
+        if raw_value.startswith("http://") or raw_value.startswith("https://"):
+            page_url = raw_value
+        else:
+            normalized = raw_value.lstrip("/") if dimension_name == "pagePath" else raw_value
+            page_url = f"{base_url}/{normalized}" if base_url else normalized
+
+        data.append(
+            {
+                "date": target_date,
+                "url": page_url,
+                "users": float(row.metric_values[0].value or 0),
+                "sessions": float(row.metric_values[1].value or 0),
+                "avg_session_duration": float(row.metric_values[2].value or 0),
+                "bounce_rate": float(row.metric_values[3].value or 0),
+            }
+        )
+
+    return data
