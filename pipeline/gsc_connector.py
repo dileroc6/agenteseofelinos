@@ -75,10 +75,10 @@ def fetch_daily_gsc_data(target_date: Optional[date] = None, site_url: Optional[
                 {
                     "date": target_date,
                     "url": url,
-                    "clicks": row.get("clicks", 0),
-                    "impressions": row.get("impressions", 0),
-                    "ctr": row.get("ctr", 0.0),
-                    "position": row.get("position", 0.0),
+                    "clicks": int(row.get("clicks", 0) or 0),
+                    "impressions": int(row.get("impressions", 0) or 0),
+                    "ctr": float(row.get("ctr", 0.0) or 0.0),
+                    "position": float(row.get("position", 0.0) or 0.0),
                 }
             )
 
@@ -87,7 +87,12 @@ def fetch_daily_gsc_data(target_date: Optional[date] = None, site_url: Optional[
             return pd.DataFrame(columns=["date", "url", "clicks", "impressions", "ctr", "position"])
 
         LOGGER.info("Search Console devolvió %d filas para %s :D", len(data), target_date)
-        return pd.DataFrame(data)
+        df = pd.DataFrame(data)
+        df["clicks"] = pd.to_numeric(df["clicks"], errors="coerce").fillna(0).round(0).astype(int)
+        df["impressions"] = pd.to_numeric(df["impressions"], errors="coerce").fillna(0).round(0).astype(int)
+        df["ctr"] = pd.to_numeric(df["ctr"], errors="coerce").fillna(0).round(4)
+        df["position"] = pd.to_numeric(df["position"], errors="coerce").fillna(0).round(2)
+        return df
     except HttpError as api_err:  # pragma: no cover - runtime error path
         LOGGER.error("Error consultando Search Console: %s", api_err)
         return pd.DataFrame(columns=["date", "url", "clicks", "impressions", "ctr", "position"])

@@ -93,7 +93,12 @@ def fetch_daily_ga4_data(property_id: Optional[str] = None, target_date: Optiona
                     target_date,
                     dimension_name,
                 )
-                return pd.DataFrame(data)
+                df = pd.DataFrame(data)
+                df["users"] = pd.to_numeric(df["users"], errors="coerce").fillna(0).round(0).astype(int)
+                df["sessions"] = pd.to_numeric(df["sessions"], errors="coerce").fillna(0).round(0).astype(int)
+                df["avg_session_duration"] = pd.to_numeric(df["avg_session_duration"], errors="coerce").fillna(0).round(2)
+                df["bounce_rate"] = pd.to_numeric(df["bounce_rate"], errors="coerce").fillna(0).round(4)
+                return df
 
             LOGGER.info("GA4 sin filas para %s con dimensión %s", target_date, dimension_name)
 
