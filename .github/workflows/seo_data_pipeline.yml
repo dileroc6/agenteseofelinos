@@ -3,7 +3,14 @@ name: Daily SEO Data Pipeline
 on:
   schedule:
     - cron: "0 8 * * *"  # 03:00 América/Bogotá (UTC-05:00)
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: "Fecha objetivo (YYYY-MM-DD)"
+        required: false
+      lookback_days:
+        description: "Override de PIPELINE_LOOKBACK_DAYS"
+        required: false
 
 jobs:
   run-pipeline:
@@ -35,6 +42,16 @@ jobs:
           echo "GSC_SERVICE_ACCOUNT_JSON=secrets/gsc.json" >> $GITHUB_ENV
           echo "GA_SERVICE_ACCOUNT_JSON=secrets/ga.json" >> $GITHUB_ENV
           echo "SHEETS_SERVICE_ACCOUNT_JSON=secrets/sheets.json" >> $GITHUB_ENV
+
+      - name: "Aplicar overrides manuales ⚙️"
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          if [ -n "${{ github.event.inputs.target_date }}" ]; then
+            echo "PIPELINE_TARGET_DATE=${{ github.event.inputs.target_date }}" >> $GITHUB_ENV
+          fi
+          if [ -n "${{ github.event.inputs.lookback_days }}" ]; then
+            echo "PIPELINE_LOOKBACK_DAYS=${{ github.event.inputs.lookback_days }}" >> $GITHUB_ENV
+          fi
 
       - name: "Execute data pipeline 🚀"
         env:
